@@ -1,12 +1,16 @@
 package com.tenniscourts.reservations;
 
 import com.tenniscourts.exceptions.EntityNotFoundException;
+import com.tenniscourts.schedules.Schedule;
+import com.tenniscourts.schedules.ScheduleController;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @AllArgsConstructor
@@ -17,13 +21,32 @@ public class ReservationService {
     private final ReservationMapper reservationMapper;
 
     public ReservationDTO bookReservation(CreateReservationRequestDTO createReservationRequestDTO) {
-        throw new UnsupportedOperationException();
+        Reservation presentReservation = reservationRepository.findByGuest_IdAndSchedule_Id(createReservationRequestDTO.getGuestId(), createReservationRequestDTO.getScheduleId());
+        if(presentReservation != null){
+            throw new UnsupportedOperationException();
+        }
+        return reservationMapper.map(reservationRepository.saveAndFlush(reservationMapper.map(createReservationRequestDTO)));
+    }
+
+    public List<ReservationDTO> bookReservation(List<CreateReservationRequestDTO> createReservationRequestDTOList) {
+        List<Reservation> result = new ArrayList<>();
+        for(CreateReservationRequestDTO item : createReservationRequestDTOList){
+            if(reservationRepository.findByGuest_IdAndSchedule_Id(item.getGuestId(), item.getScheduleId()) != null){
+                throw new UnsupportedOperationException();
+            }
+            result.add(reservationRepository.findByGuest_IdAndSchedule_Id(item.getGuestId(), item.getScheduleId()));
+        }
+        return reservationMapper.map(result);
     }
 
     public ReservationDTO findReservation(Long reservationId) {
         return reservationRepository.findById(reservationId).map(reservationMapper::map).orElseThrow(() -> {
             throw new EntityNotFoundException("Reservation not found.");
         });
+    }
+
+    public List<ReservationDTO> findPreviousReservation(LocalDateTime date){
+        return reservationMapper.map(reservationRepository.findAllByDateCreateLessThan(date));
     }
 
     public ReservationDTO cancelReservation(Long reservationId) {
@@ -66,6 +89,16 @@ public class ReservationService {
 
         if (hours >= 24) {
             return reservation.getValue();
+        }
+        if(hours >12){
+            return reservation.getValue().subtract(reservation.getValue().multiply(BigDecimal.valueOf(0.25)));
+        }
+        if(hours >2 && hours < 10){
+            return reservation.getValue().subtract(reservation.getValue().multiply(BigDecimal.valueOf(0.50)));
+        }
+
+        if(hours >=0.1 && hours <= 2){
+            return reservation.getValue().subtract(reservation.getValue().multiply(BigDecimal.valueOf(0.75)));
         }
 
         return BigDecimal.ZERO;
